@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  HR_ADMIN
+  BRANCH_MANAGER
+  EMPLOYEE
+}
+
+enum AttendanceMethod {
+  GPS
+  FINGERPRINT
+  MANUAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  SICK
+  PERMISSION
+  LEAVE
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  UNPAID
+  MONTHLY_OFF
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee   Employee?
+  managedBranch Branch? // If Branch Manager
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  latitude  Float?
+  longitude Float?
+  radius    Int      @default(50) // Geofencing radius in meters
+  timezone  String   @default("Asia/Jakarta")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+  manager   User?      @relation(fields: [managerId], references: [id])
+  managerId String?    @unique
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions Position[]
+}
+
+model Position {
+  id           String     @id @default(cuid())
+  title        String
+  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  employees Employee[]
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  // Personal Info
+  fullName  String
+  nik       String?  @unique // National ID
+  phone     String?
+  address   String?
+  birthDate DateTime?
+  joinDate  DateTime
+  
+  // Employment
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  positionId  String
+  position    Position @relation(fields: [positionId], references: [id])
+  status      String   @default("ACTIVE") // ACTIVE, RESIGNED, TERMINATED
+  
+  // Leave Quotas
+  annualLeaveQuota Int @default(12)
+  monthlyLeaveQuota Int @default(0) // Dynamic based on level
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances Attendance[]
+  leaves      LeaveRequest[]
+  payrolls    Payroll[]
+  schedules   EmployeeSchedule[]
+}
+
+model Shift {
+  id        String   @id @default(cuid())
+  name      String   // e.g., "Morning Shift", "Night Shift"
+  startTime String   // "08:00"
+  endTime   String   // "17:00"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules EmployeeSchedule[]
+}
+
+model EmployeeSchedule {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  shiftId    String
+  shift      Shift    @relation(fields: [shiftId], references: [id])
+  date       DateTime // Specific date for this shift
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, date])
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id])
+  date        DateTime         @default(now()) // The date of attendance
+  
+  checkIn     DateTime?
+  checkOut    DateTime?
+  
+  checkInLat  Float?
+  checkInLong Float?
+  checkOutLat Float?
+  checkOutLong Float?
+  
+  checkInPhoto  String?
+  checkOutPhoto String?
+  
+  method      AttendanceMethod @default(GPS)
+  status      AttendanceStatus @default(ABSENT)
+  
+  notes       String?
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model LeaveRequest {
+  id          String      @id @default(cuid())
+  employeeId  String
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+  
+  type        LeaveType
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  
+  status      LeaveStatus @default(PENDING)
+  approvedBy  String?     // User ID of approver
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Payroll {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  
+  periodStart DateTime
+  periodEnd   DateTime
+  
+  basicSalary Float
+  allowances  Json     // e.g., { "transport": 50000, "meal": 20000 }
+  deductions  Json     // e.g., { "bpjs": 100000, "kasbon": 50000 }
+  netSalary   Float
+  
+  status      String   @default("DRAFT") // DRAFT, PROCESSED, PAID
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
