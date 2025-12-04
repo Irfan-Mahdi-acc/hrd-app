@@ -20,6 +20,21 @@ const sidebarItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Branches",
+    href: "/dashboard/branches",
+    icon: Building2,
+  },
+  {
+    title: "Departments",
+    href: "/dashboard/departments",
+    icon: Users,
+  },
+  {
+    title: "Shifts",
+    href: "/dashboard/shifts",
+    icon: CalendarClock,
+  },
+  {
     title: "Employees",
     href: "/dashboard/employees",
     icon: Users,
@@ -33,11 +48,6 @@ const sidebarItems = [
     title: "Payroll",
     href: "/dashboard/payroll",
     icon: Banknote,
-  },
-  {
-    title: "Organization",
-    href: "/dashboard/organization",
-    icon: Building2,
   },
   {
     title: "Settings",

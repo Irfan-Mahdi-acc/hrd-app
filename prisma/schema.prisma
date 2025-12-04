@@ -125,14 +125,18 @@ model Employee {
 }
 
 model Shift {
-  id        String   @id @default(cuid())
-  name      String   // e.g., "Morning Shift", "Night Shift"
-  startTime String   // "08:00"
-  endTime   String   // "17:00"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String   // e.g., "Morning Shift", "Night Shift"
+  startTime    String   // "08:00"
+  endTime      String   // "17:00"
+  breakMinutes Int      @default(0) // Optional break duration
+  isOvernight  Boolean  @default(false) // For shifts crossing midnight
+  color        String?  // For UI display (e.g., "#3b82f6")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   schedules EmployeeSchedule[]
+  attendances Attendance[] // Link attendance to detected shift
 }
 
 model EmployeeSchedule {
@@ -168,6 +172,10 @@ model Attendance {
   
   method      AttendanceMethod @default(GPS)
   status      AttendanceStatus @default(ABSENT)
+  
+  // Auto-detected shift
+  shiftId     String?
+  shift       Shift?           @relation(fields: [shiftId], references: [id])
   
   notes       String?
   
