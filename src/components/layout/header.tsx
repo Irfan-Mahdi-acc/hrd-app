@@ -1,7 +1,6 @@
-'use client'
-
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { Menu, LogOut } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,70 +10,67 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Menu } from "lucide-react"
-import Link from "next/link"
+import { auth } from "@/lib/auth"
+import { signOutAction } from "@/lib/actions/auth-actions"
+import { redirect } from "next/navigation"
 import { Sidebar } from "./sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 
-interface HeaderProps {
-  userEmail?: string
-  userRole?: string
-}
+export async function Header() {
+  const session = await auth()
+  
+  if (!session) {
+    redirect('/login')
+  }
 
-export function Header({ userEmail, userRole }: HeaderProps) {
-  const initials = userEmail
-    ? userEmail.substring(0, 2).toUpperCase()
-    : "U"
+  const userInitials = session.user?.email?.substring(0, 2).toUpperCase() || 'U'
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
+      {/* Mobile menu */}
       <Sheet>
         <SheetTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className="shrink-0 lg:hidden"
-          >
+          <Button variant="ghost" size="icon" className="md:hidden">
             <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle navigation menu</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="flex flex-col p-0">
+        <SheetContent side="left" className="p-0">
           <Sidebar />
         </SheetContent>
       </Sheet>
-      <div className="w-full flex-1">
-        <h1 className="text-lg font-semibold">HRD Management System</h1>
-      </div>
+
+      <div className="flex-1" />
+
+      {/* Theme Toggle */}
+      <ThemeToggle />
+
+      {/* User menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="icon" className="rounded-full">
+          <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar>
-              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarFallback className="bg-primary text-primary-foreground">
+                {userInitials}
+              </AvatarFallback>
             </Avatar>
-            <span className="sr-only">Toggle user menu</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{userEmail}</p>
-              <p className="text-xs leading-none text-muted-foreground">
-                {userRole}
-              </p>
+              <p className="text-sm font-medium">{session.user?.email}</p>
+              <p className="text-xs text-muted-foreground">{session.user?.role}</p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings">Settings</Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <form action="/api/auth/signout" method="post">
-              <button type="submit" className="w-full text-left">
-                Sign Out
+          <form action={signOutAction}>
+            <DropdownMenuItem asChild>
+              <button type="submit" className="w-full cursor-pointer">
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
               </button>
-            </form>
-          </DropdownMenuItem>
+            </DropdownMenuItem>
+          </form>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
