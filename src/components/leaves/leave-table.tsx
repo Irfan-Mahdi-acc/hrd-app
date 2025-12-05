@@ -56,10 +56,9 @@ export function LeaveTable({ leaveRequests, isAdmin, currentUserId }: LeaveTable
     const colors: Record<string, string> = {
       ANNUAL: 'bg-blue-500',
       SICK: 'bg-red-500',
-      PERMISSION: 'bg-yellow-500',
-      MONTHLY: 'bg-green-500',
+      MONTHLY_OFF: 'bg-green-500',
       UNPAID: 'bg-gray-500',
-      EMERGENCY: 'bg-orange-500',
+      OTHER: 'bg-orange-500',
     }
 
     return (
@@ -67,6 +66,22 @@ export function LeaveTable({ leaveRequests, isAdmin, currentUserId }: LeaveTable
         {type.replace('_', ' ')}
       </Badge>
     )
+  }
+
+  const calculateDuration = (startDate: Date, endDate: Date) => {
+    let count = 0
+    const current = new Date(startDate)
+    
+    while (current <= endDate) {
+      const day = current.getDay()
+      // Skip weekends (0 = Sunday, 6 = Saturday)
+      if (day !== 0 && day !== 6) {
+        count++
+      }
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return count
   }
 
   if (leaveRequests.length === 0) {
@@ -104,10 +119,10 @@ export function LeaveTable({ leaveRequests, isAdmin, currentUserId }: LeaveTable
                   </div>
                 </TableCell>
               )}
-              <TableCell>{getLeaveTypeBadge(request.leaveType)}</TableCell>
+              <TableCell>{getLeaveTypeBadge(request.type)}</TableCell>
               <TableCell>{formatDate(request.startDate)}</TableCell>
               <TableCell>{formatDate(request.endDate)}</TableCell>
-              <TableCell>{request.duration} days</TableCell>
+              <TableCell>{calculateDuration(request.startDate, request.endDate)} days</TableCell>
               <TableCell>{getStatusBadge(request.status)}</TableCell>
               {isAdmin && (
                 <TableCell className="text-right">

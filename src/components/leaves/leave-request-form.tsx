@@ -28,7 +28,7 @@ import { createLeaveRequest } from '@/lib/actions/leave-actions'
 import { toast } from 'sonner'
 
 const formSchema = z.object({
-  leaveType: z.enum(['ANNUAL', 'SICK', 'PERMISSION', 'MONTHLY', 'UNPAID', 'EMERGENCY']),
+  leaveType: z.enum(['ANNUAL', 'SICK', 'UNPAID', 'MONTHLY_OFF', 'OTHER']),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
   reason: z.string().min(10, 'Reason must be at least 10 characters'),
@@ -96,10 +96,9 @@ export function LeaveRequestForm({ employeeId }: LeaveRequestFormProps) {
                     <SelectContent>
                       <SelectItem value="ANNUAL">Annual Leave</SelectItem>
                       <SelectItem value="SICK">Sick Leave</SelectItem>
-                      <SelectItem value="PERMISSION">Permission</SelectItem>
-                      <SelectItem value="MONTHLY">Monthly Leave</SelectItem>
+                      <SelectItem value="MONTHLY_OFF">Monthly Off</SelectItem>
                       <SelectItem value="UNPAID">Unpaid Leave</SelectItem>
-                      <SelectItem value="EMERGENCY">Emergency Leave</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

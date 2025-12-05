@@ -3,25 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { detectShiftByTime } from './shift-actions'
-
-/**
- * Calculate distance between two coordinates using Haversine formula
- * Returns distance in meters
- */
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3 // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180
-  const φ2 = (lat2 * Math.PI) / 180
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-  return R * c // Distance in meters
-}
+import { calculateDistance } from '@/lib/utils/attendance-utils'
 
 /**
  * Check if employee is within branch geofence
@@ -300,16 +282,6 @@ export async function getAttendanceByDate(date: Date, branchId?: string) {
 }
 
 /**
- * Calculate work hours from attendance
- */
-export function calculateWorkHours(checkIn: Date, checkOut: Date | null): number {
-  if (!checkOut) return 0
-  
-  const diff = checkOut.getTime() - checkIn.getTime()
-  return diff / (1000 * 60 * 60) // Convert to hours
-}
-
-/**
  * Update attendance status (manual correction by admin)
  */
 export async function updateAttendanceStatus(
@@ -331,5 +303,177 @@ export async function updateAttendanceStatus(
   } catch (error) {
     console.error('Failed to update attendance:', error)
     return { success: false, error: 'Failed to update attendance' }
+  }
+}
+
+/**
+ * Get attendance logs with advanced filtering
+ */
+export async function getAttendanceLogsWithFilters(filters: {
+  branchId?: string
+  employeeId?: string
+  status?: string
+  startDate?: Date
+  endDate?: Date
+  page?: number
+  limit?: number
+}) {
+  try {
+    const { branchId, employeeId, status, startDate, endDate, page = 1, limit = 50 } = filters
+    
+    const where: any = {}
+    
+    if (employeeId) {
+      where.employeeId = employeeId
+    }
+    
+    if (branchId) {
+      where.employee = {
+        branchId
+      }
+    }
+    
+    if (status && status !== 'ALL') {
+      where.status = status
+    }
+    
+    if (startDate || endDate) {
+      where.date = {}
+      if (startDate) where.date.gte = startDate
+      if (endDate) where.date.lte = endDate
+    }
+
+    const [attendances, total] = await Promise.all([
+      prisma.attendance.findMany({
+        where,
+        include: {
+          shift: true,
+          employee: {
+            include: {
+              branch: true,
+              position: true
+            }
+          }
+        },
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      prisma.attendance.count({ where })
+    ])
+
+    return { 
+      success: true, 
+      data: attendances,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch attendance logs:', error)
+    return { success: false, error: 'Failed to fetch attendance logs' }
+  }
+}
+
+/**
+ * Correct attendance record (manual correction by admin)
+ */
+export async function correctAttendance(
+  id: string,
+  data: {
+    checkIn?: Date
+    checkOut?: Date
+    status?: 'PRESENT' | 'LATE' | 'ABSENT' | 'SICK' | 'PERMISSION' | 'LEAVE'
+    notes?: string
+  }
+) {
+  try {
+    const attendance = await prisma.attendance.update({
+      where: { id },
+      data: {
+        ...data,
+        method: 'MANUAL' // Mark as manually corrected
+      },
+      include: {
+        shift: true,
+        employee: {
+          include: {
+            branch: true,
+            position: true
+          }
+        }
+      }
+    })
+
+    revalidatePath('/dashboard/attendance')
+    revalidatePath('/dashboard/attendance/logs')
+    return { success: true, data: attendance, message: 'Attendance corrected successfully' }
+  } catch (error) {
+    console.error('Failed to correct attendance:', error)
+    return { success: false, error: 'Failed to correct attendance' }
+  }
+}
+
+/**
+ * Get attendance statistics
+ */
+export async function getAttendanceStats(filters: {
+  branchId?: string
+  employeeId?: string
+  startDate?: Date
+  endDate?: Date
+}) {
+  try {
+    const { branchId, employeeId, startDate, endDate } = filters
+    
+    const where: any = {}
+    
+    if (employeeId) {
+      where.employeeId = employeeId
+    }
+    
+    if (branchId) {
+      where.employee = {
+        branchId
+      }
+    }
+    
+    if (startDate || endDate) {
+      where.date = {}
+      if (startDate) where.date.gte = startDate
+      if (endDate) where.date.lte = endDate
+    }
+
+    const [total, present, late, absent, sick, permission, leave] = await Promise.all([
+      prisma.attendance.count({ where }),
+      prisma.attendance.count({ where: { ...where, status: 'PRESENT' } }),
+      prisma.attendance.count({ where: { ...where, status: 'LATE' } }),
+      prisma.attendance.count({ where: { ...where, status: 'ABSENT' } }),
+      prisma.attendance.count({ where: { ...where, status: 'SICK' } }),
+      prisma.attendance.count({ where: { ...where, status: 'PERMISSION' } }),
+      prisma.attendance.count({ where: { ...where, status: 'LEAVE' } })
+    ])
+
+    return {
+      success: true,
+      data: {
+        total,
+        present,
+        late,
+        absent,
+        sick,
+        permission,
+        leave,
+        presentPercentage: total > 0 ? ((present / total) * 100).toFixed(1) : '0',
+        latePercentage: total > 0 ? ((late / total) * 100).toFixed(1) : '0',
+        absentPercentage: total > 0 ? ((absent / total) * 100).toFixed(1) : '0'
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch attendance stats:', error)
+    return { success: false, error: 'Failed to fetch attendance stats' }
   }
 }

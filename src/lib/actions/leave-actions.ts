@@ -3,35 +3,17 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { calculateWorkingDays } from '@/lib/utils/attendance-utils'
 
 const leaveRequestSchema = z.object({
   employeeId: z.string().min(1, 'Employee is required'),
-  leaveType: z.enum(['ANNUAL', 'SICK', 'PERMISSION', 'MONTHLY', 'UNPAID', 'EMERGENCY']),
+  leaveType: z.enum(['ANNUAL', 'SICK', 'UNPAID', 'MONTHLY_OFF', 'OTHER']),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
   reason: z.string().min(1, 'Reason is required'),
 })
 
 export type LeaveRequestFormData = z.infer<typeof leaveRequestSchema>
-
-/**
- * Calculate working days between two dates (excluding weekends)
- */
-export function calculateWorkingDays(startDate: Date, endDate: Date): number {
-  let count = 0
-  const current = new Date(startDate)
-  
-  while (current <= endDate) {
-    const day = current.getDay()
-    // Skip weekends (0 = Sunday, 6 = Saturday)
-    if (day !== 0 && day !== 6) {
-      count++
-    }
-    current.setDate(current.getDate() + 1)
-  }
-  
-  return count
-}
 
 /**
  * Get leave balance for employee
@@ -65,12 +47,12 @@ export async function getLeaveBalance(employeeId: string) {
 
     // Calculate used days by type
     const usedAnnual = approvedLeaves
-      .filter(l => l.leaveType === 'ANNUAL')
-      .reduce((sum, l) => sum + l.duration, 0)
+      .filter(l => l.type === 'ANNUAL')
+      .reduce((sum, l) => sum + calculateWorkingDays(l.startDate, l.endDate), 0)
 
     const usedMonthly = approvedLeaves
-      .filter(l => l.leaveType === 'MONTHLY')
-      .reduce((sum, l) => sum + l.duration, 0)
+      .filter(l => l.type === 'MONTHLY_OFF')
+      .reduce((sum, l) => sum + calculateWorkingDays(l.startDate, l.endDate), 0)
 
     return {
       success: true,
@@ -107,8 +89,8 @@ export async function createLeaveRequest(data: LeaveRequestFormData) {
     // Calculate duration
     const duration = calculateWorkingDays(startDate, endDate)
 
-    // Check quota for ANNUAL and MONTHLY leave types
-    if (validated.leaveType === 'ANNUAL' || validated.leaveType === 'MONTHLY') {
+    // Check quota for ANNUAL and MONTHLY_OFF leave types
+    if (validated.leaveType === 'ANNUAL' || validated.leaveType === 'MONTHLY_OFF') {
       const balanceResult = await getLeaveBalance(validated.employeeId)
       
       if (!balanceResult.success || !balanceResult.data) {
@@ -124,7 +106,7 @@ export async function createLeaveRequest(data: LeaveRequestFormData) {
         }
       }
 
-      if (validated.leaveType === 'MONTHLY' && duration > balance.remainingMonthly) {
+      if (validated.leaveType === 'MONTHLY_OFF' && duration > balance.remainingMonthly) {
         return { 
           success: false, 
           error: `Insufficient monthly leave quota. You have ${balance.remainingMonthly} days remaining.` 

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -115,6 +115,10 @@ model Employee {
   annualLeaveQuota Int @default(12)
   monthlyLeaveQuota Int @default(0) // Dynamic based on level
   
+  // Salary Configuration
+  hourlyRate     Float?   // For overtime calculation
+  allowances     Json?    // Default allowances
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -122,6 +126,8 @@ model Employee {
   leaves      LeaveRequest[]
   payrolls    Payroll[]
   schedules   EmployeeSchedule[]
+  debtor      Debtor?
+  overtimes   Overtime[]
 }
 
 model Shift {
@@ -217,4 +223,106 @@ model Payroll {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Debt Management Models
+model Debtor {
+  id          String      @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  
+  // Link to employee if debtor is an employee
+  employeeId  String?     @unique
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
+  
+  type        DebtorType  @default(EXTERNAL)
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  debts       Debt[]
+}
+
+model Debt {
+  id          String      @id @default(cuid())
+  debtorId    String
+  debtor      Debtor      @relation(fields: [debtorId], references: [id], onDelete: Cascade)
+  
+  amount      Float       // Total debt amount
+  remaining   Float       // Remaining amount to pay
+  
+  description String?
+  dueDate     DateTime?
+  
+  status      DebtStatus  @default(ACTIVE)
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  payments    DebtPayment[]
+}
+
+model DebtPayment {
+  id          String        @id @default(cuid())
+  debtId      String
+  debt        Debt          @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  
+  amount      Float
+  paymentDate DateTime      @default(now())
+  method      PaymentMethod @default(CASH)
+  
+  notes       String?
+  receiptUrl  String?       // Optional receipt/proof
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum DebtorType {
+  EMPLOYEE
+  EXTERNAL
+}
+
+enum DebtStatus {
+  ACTIVE
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  DEDUCTION  // Deducted from salary
+  OTHER
+}
+
+// Overtime Management
+model Overtime {
+  id          String         @id @default(cuid())
+  employeeId  String
+  employee    Employee       @relation(fields: [employeeId], references: [id])
+  
+  date        DateTime
+  startTime   DateTime
+  endTime     DateTime
+  duration    Float          // Hours
+  
+  reason      String?
+  status      OvertimeStatus @default(PENDING)
+  approvedBy  String?
+  approvedAt  DateTime?
+  
+  rate        Float?         // Overtime rate multiplier (1.5x, 2x, etc.)
+  amount      Float?         // Calculated overtime pay
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum OvertimeStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

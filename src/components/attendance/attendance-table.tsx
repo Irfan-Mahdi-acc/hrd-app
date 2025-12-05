@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { calculateWorkHours } from "@/lib/actions/attendance-actions"
+import { calculateWorkHours } from "@/lib/utils/attendance-utils"
 
 type AttendanceWithRelations = Attendance & {
   shift: Shift | null

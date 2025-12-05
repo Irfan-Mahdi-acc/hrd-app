@@ -16,8 +16,9 @@ async function getUser(email: string): Promise<User | null> {
   }
 }
 
-export const { auth, signIn, signOut } = NextAuth({
+export const { auth, signIn, signOut, handlers } = NextAuth({
   ...authConfig,
+  secret: process.env.AUTH_SECRET,
   providers: [
     Credentials({
       async authorize(credentials) {
@@ -49,7 +50,7 @@ export const { auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as string
+        session.user.role = token.role as any
         session.user.id = token.id as string
       }
       return session
